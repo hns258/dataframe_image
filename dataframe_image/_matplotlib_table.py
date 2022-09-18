@@ -2,9 +2,13 @@ import base64
 import io
 import textwrap
 
+import matplotlib.colors
 import numpy as np
 import pandas as pd
+import cssutils
 from bs4 import BeautifulSoup
+import matplotlib.pyplot as plt
+
 from matplotlib import lines as mlines
 from matplotlib import patches as mpatches
 from matplotlib.backends.backend_agg import RendererAgg
@@ -32,7 +36,7 @@ class TableMaker:
     def parse_html(self, html):
         html = html.replace("<br>", "\n")
         rows, num_header_rows = self.parse_into_rows(html)
-        num_cols = sum(val[-1] for val in rows[0])
+        num_cols = len(rows[0]) #sum(val[-1] for val in rows[0]) TODO ask why done this way
         new_rows = []
         rowspan = {}
         for i, row in enumerate(rows):
@@ -70,8 +74,22 @@ class TableMaker:
                 if text_align.startswith(val):
                     return val
 
+    def parse_css(self, soup):
+        selectors = {}
+        for styles in soup.select('style'):
+            css_rules = cssutils.parseString(styles.encode_contents())
+            for rule in css_rules:
+                if rule.type == rule.STYLE_RULE:
+                    style = rule.selectorText
+                    selectors[style] = {}
+                    for item in rule.style:
+                        property_name = item.name
+                        value = item.value
+                        selectors[style][property_name] = value
+        return selectors
+
     def parse_into_rows(self, html):
-        def parse_row(row):
+        def parse_row(row, selectors):
             values = []
             rowspan_dict = {}
             colspan_total = 0
@@ -82,7 +100,14 @@ class TableMaker:
                 rowspan = int(el.attrs.get("rowspan", 1))
                 text_align = self.get_text_align(el) or row_align
                 text = el.get_text()
-                values.append([text, bold, text_align, rowspan, colspan])
+                element_id = "#" + el.attrs.get("id", "na")
+                color = '#FFFFFF'
+                background_color = '#FFFFFF'
+                print(element_id)
+                if element_id != '#na' and element_id in selectors.keys():
+                    color = selectors[element_id]['color']
+                    background_color = selectors[element_id]['background-color']
+                values.append([text, bold, text_align, color, background_color, rowspan, colspan])
             return values
 
         soup = BeautifulSoup(html, features="lxml")
@@ -91,24 +116,27 @@ class TableMaker:
         thead = soup.find("thead")
         tbody = soup.find("tbody")
 
+        selectors = self.parse_css(soup)
+
         rows = []
         if thead:
             head_rows = thead.find_all("tr")
             if head_rows:
                 for row in head_rows:
-                    rows.append(parse_row(row))
+                    rows.append(parse_row(row, selectors))
             else:
-                rows.append(parse_row(thead))
+                rows.append(parse_row(thead, selectors))
 
         num_header_rows = len(rows)
 
         if tbody:
             for row in tbody.find_all("tr"):
-                rows.append(parse_row(row))
+                rows.append(parse_row(row, selectors))
 
         if not thead and not tbody:
             for row in soup.find_all("tr"):
-                rows.append(parse_row(row))
+                rows.append(parse_row(row, selectors))
+
         return rows, num_header_rows
 
     def get_text_width(self, text):
@@ -209,7 +237,8 @@ class TableMaker:
                 text = val[0]
                 weight = "bold" if val[1] else None
                 ha = val[2] or header_text_align[j] or "right"
-
+                cell_color = val[3]
+                bg_color = val[4]
                 if ha == "right":
                     x += xd
                 elif ha == "center":
@@ -221,7 +250,7 @@ class TableMaker:
                     size=self.fontsize,
                     ha=ha,
                     va="center",
-                    weight=weight,
+                    weight=weight
                 )
                 if ha == "left":
                     x += xd
@@ -235,13 +264,14 @@ class TableMaker:
                     width=total_width,
                     height=yd,
                     fill=True,
-                    color="#f5f5f5",
+                    color=bg_color,
+                    facecolor=cell_color,
                     transform=self.fig.transFigure,
                 )
                 self.fig.add_artist(p)
 
             if i == self.num_header_rows - 1:
-                line = mlines.Line2D([x0, x0 + total_width], [y, y], color="black")
+                line = mlines.Line2D([x0, x0 + total_width], [y, y], color="green")
                 self.fig.add_artist(line)
 
         w, h = self.fig.get_size_inches()
