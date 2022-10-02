@@ -18,7 +18,7 @@ from matplotlib.transforms import Bbox
 
 class TableMaker:
     def __init__(
-        self, fontsize=14, encode_base64=True, limit_crop=True, for_document=True
+        self, fontsize=14, encode_base64=True, limit_crop=True, for_document=True, savefig_dpi=None
     ):
         self.original_fontsize = fontsize
         self.encode_base64 = encode_base64
@@ -32,6 +32,7 @@ class TableMaker:
             self.figheight = 4
             self.wrap_length = 10
         self.dpi = 100
+        self.savefig_dpi = savefig_dpi
 
     def parse_html(self, html):
         html = html.replace("<br>", "\n")
@@ -279,7 +280,7 @@ class TableMaker:
         end = self.figwidth - start
         bbox = Bbox([[start - 0.1, y * h], [end + 0.1, h]])
         buffer = io.BytesIO()
-        self.fig.savefig(buffer, bbox_inches=bbox)
+        self.fig.savefig(buffer, bbox_inches=bbox, dpi=self.savefig_dpi)
         img_str = buffer.getvalue()
         if self.encode_base64:
             img_str = base64.b64encode(img_str).decode()
