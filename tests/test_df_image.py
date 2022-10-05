@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-import dataframe_image
+import dataframe_image as dfi
 
 df = pd.read_csv(
     "tests/notebooks/data/covid19.csv", parse_dates=["date"], index_col="date"
@@ -21,6 +21,10 @@ class TestImage:
         df.tail(10).style.background_gradient().export_png(
             "tests/test_output/covid19_styled.png"
         )
+
+    def test_mpl_styled(self):
+        df_styled = df.tail(10).style.background_gradient()
+        dfi.export(df_styled, "tests/test_output/covid19_mpl_styled.png", table_conversion="matplotlib")
 
     @pytest.mark.parametrize('dpi', test_dpi_values)
     def test_styled_changed_dpi(self, dpi):

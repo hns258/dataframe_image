@@ -51,7 +51,7 @@ class TableMaker:
                     cur_col_loc = 0
                     for _ in range(val[-1]):
                         cur_col_loc += 1
-                        new_row.append(val[:3])
+                        new_row.append(val[:5])
                     if val[-2] == 1:
                         del rowspan[col_loc]
                     col_loc += cur_col_loc
@@ -61,7 +61,7 @@ class TableMaker:
                         rowspan[col_loc] = val
                     col_loc += val[-1]  # usually 1
                     for _ in range(val[-1]):
-                        new_row.append(val[:3])
+                        new_row.append(val[:5])
                     j += 1
             new_rows.append(new_row)
         return new_rows, num_header_rows
@@ -76,18 +76,19 @@ class TableMaker:
                     return val
 
     def parse_css(self, soup):
-        selectors = {}
+        rule_pairs = {}
         for styles in soup.select('style'):
             css_rules = cssutils.parseString(styles.encode_contents())
             for rule in css_rules:
                 if rule.type == rule.STYLE_RULE:
-                    style = rule.selectorText
-                    selectors[style] = {}
+                    selectors = rule.selectorText.split(',')
                     for item in rule.style:
-                        property_name = item.name
-                        value = item.value
-                        selectors[style][property_name] = value
-        return selectors
+                        for selector in selectors:
+                            selector = selector.strip()
+                            if selector not in rule_pairs.keys():
+                                rule_pairs[selector] = {}
+                            rule_pairs[selector][item.name] = item.value
+        return rule_pairs
 
     def parse_into_rows(self, html):
         def parse_row(row, selectors):
@@ -102,8 +103,8 @@ class TableMaker:
                 text_align = self.get_text_align(el) or row_align
                 text = el.get_text()
                 element_id = "#" + el.attrs.get("id", "na")
-                color = '#FFFFFF'
-                background_color = '#FFFFFF'
+                color = 'black'
+                background_color = 'white'
                 print(element_id)
                 if element_id != '#na' and element_id in selectors.keys():
                     color = selectors[element_id]['color']
@@ -238,12 +239,24 @@ class TableMaker:
                 text = val[0]
                 weight = "bold" if val[1] else None
                 ha = val[2] or header_text_align[j] or "right"
-                cell_color = val[3]
+                text_color = val[3]
                 bg_color = val[4]
+
+                p = mpatches.Rectangle(
+                    (x, y),
+                    width=xd,
+                    height=yd,
+                    fill=True,
+                    color=bg_color,
+                    transform=self.fig.transFigure,
+                )
+
                 if ha == "right":
                     x += xd
                 elif ha == "center":
                     x += xd / 2
+
+                self.fig.add_artist(p)
                 self.fig.text(
                     x,
                     y + yd / 2,
@@ -251,28 +264,29 @@ class TableMaker:
                     size=self.fontsize,
                     ha=ha,
                     va="center",
-                    weight=weight
+                    weight=weight,
+                    color=text_color
                 )
                 if ha == "left":
                     x += xd
                 elif ha == "center":
                     x += xd / 2
 
-            diff = i - self.num_header_rows
-            if diff >= 0 and diff % 2 == 0:
-                p = mpatches.Rectangle(
-                    (x0, y),
-                    width=total_width,
-                    height=yd,
-                    fill=True,
-                    color=bg_color,
-                    facecolor=cell_color,
-                    transform=self.fig.transFigure,
-                )
-                self.fig.add_artist(p)
+            # diff = i - self.num_header_rows
+            # if diff >= 0 and diff % 2 == 0:
+            #     p = mpatches.Rectangle(
+            #         (x0, y),
+            #         width=total_width,
+            #         height=yd,
+            #         fill=True,
+            #         color=bg_color,
+            #         facecolor=cell_color,
+            #         transform=self.fig.transFigure,
+            #     )
+            #     self.fig.add_artist(p)
 
             if i == self.num_header_rows - 1:
-                line = mlines.Line2D([x0, x0 + total_width], [y, y], color="green")
+                line = mlines.Line2D([x0, x0 + total_width], [y, y], color="black")
                 self.fig.add_artist(line)
 
         w, h = self.fig.get_size_inches()
